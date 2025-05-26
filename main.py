@@ -128,27 +128,58 @@ class BilibiliLogin:
         )
         confirm_btn.click()
         time.sleep(2)
+    def check_success(self, timeout=5):
+        try:
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                text = self.browser.execute_script("""
+                    var el = document.querySelector('div.geetest_result_tip.geetest_success');
+                    return el ? el.innerText.trim() : '';
+                """)
+                if text:
+                    print(f"[调试] JS 获取成功提示文本: '{text}'")
+                    return text.startswith("验证成功")
+                time.sleep(0.2)
+            print("[调试] 超时未通过验证")
+            return False
+        except Exception as e:
+            print(f"[调试] check_success 异常: {e}")
+            return False
+
 
     def close(self):
         self.browser.quit()
+   
+
+
 
 
 if __name__ == "__main__":
     USERNAME = "18223540359"
-    PASSWORD = "20040907"
+    PASSWORD = "11111111"
 
-    for i in range(10):
+    total = 10
+    success_count = 0
+
+    for i in range(total):
         print(f"\n================= 第 {i + 1} 次验证码识别测试 =================")
 
         bilibili = BilibiliLogin(USERNAME, PASSWORD)
         try:
             bilibili.open()
-            bilibili.pick_code(i + 1)  # 传递当前轮次
+            bilibili.pick_code(i + 1)  # 执行识别和点击
+
+            if bilibili.check_success():  # 检查是否识别成功
+                print("✅ 第 {} 次验证成功".format(i + 1))
+                success_count += 1
+            else:
+                print("❌ 第 {} 次验证失败".format(i + 1))
         except Exception as e:
-            print(f"第 {i + 1} 次出错了:", e)
+            print(f"🚫 第 {i + 1} 次出错了:", e)
             bilibili.browser.save_screenshot(f"debug/error_debug_{i + 1}.png")
         finally:
             bilibili.close()
             time.sleep(1)
 
-
+    print(f"\n识别成功次数: {success_count}/{total}")
+    print(f"识别成功率: {success_count / total * 100:.2f}%")
