@@ -23,6 +23,11 @@ class Model:
         input_height = input_shape[3]
         self.img = cv2.imdecode(np.frombuffer(img, np.uint8), cv2.IMREAD_ANYCOLOR)
         img_height, img_width = self.img.shape[:2]
+
+        # 裁剪下半部分作为顺序图区域（假设为下 1/3）
+        order_area = self.img[int(img_height * 9 / 10):, :]  # 你可以根据图片实际比例微调这个裁剪位置
+        self.order_area = order_area.copy()
+
         img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (input_height, input_width))
         image_data = np.array(img) / 255.0
@@ -59,6 +64,21 @@ class Model:
                 big_img_boxes.append(i)
         return small_imgs, big_img_boxes
 
+    def split_order_image(self, count: int):
+        """
+        直接从左到右切割 count 个小图，每个宽度为 30。
+        :param count: 要切出的图像数量。
+        """
+        height, width = self.order_area.shape[:2]
+        char_width = 30
+        ordered_crops = []
+        for i in range(count):
+            x_start = i * char_width
+            x_end = min(x_start + char_width, width)
+            crop = self.order_area[:, x_start:x_end]
+            ordered_crops.append(crop)
+        return ordered_crops
+
     @staticmethod
     def preprocess_image(img, size=(105, 105)):
         img_resized = cv2.resize(img, size)
@@ -91,3 +111,30 @@ class Model:
             cv2.circle(self.img, (i[0] + 30, i[1] + 30), 5, (0, 0, 255), 5)
             cv2.imwrite("result.jpg", self.img)
         return result_list
+
+    def siamese_from_order(self, order_imgs, big_img_boxes):
+        result_list = []
+        for img1 in order_imgs:
+            image_data_1 = self.preprocess_image(img1)
+            matched = False
+            for box in big_img_boxes:
+                if [box[0], box[1]] in result_list:
+                    continue
+                cropped = self.img[box[1]: box[1] + box[3], box[0]: box[0] + box[2]]
+                image_data_2 = self.preprocess_image(cropped)
+                inputs = {'input': image_data_1, "input.53": image_data_2}
+                output = self.Siamese.run(None, inputs)
+                output_sigmoid = 1 / (1 + np.exp(-output[0]))
+                res = output_sigmoid[0][0]
+                if res >= 0.1:
+                    result_list.append([box[0], box[1]])
+                    matched = True
+                    break
+            if not matched:
+                print("未匹配到一个顺序小图，可能需要调阈值或检查图像切割")
+        # 可视化
+        for i in result_list:
+            cv2.circle(self.img, (i[0] + 30, i[1] + 30), 5, (0, 0, 255), 5)
+        cv2.imwrite("result.jpg", self.img)
+        return result_list
+
