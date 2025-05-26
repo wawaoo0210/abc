@@ -1,6 +1,5 @@
 import json
 import time
-from crack import Crack
 from model import Model
 import httpx
 import cv2

@@ -8,9 +8,7 @@ class Model:
     def __init__(self):
         self.img = None
         self.yolo = onnxruntime.InferenceSession("yolov8s.onnx")
-        # tt = time.time()
         self.Siamese = onnxruntime.InferenceSession("siamese.onnx")
-        # print(time.time() - tt)
         self.classes = ["big", "small"]
         self.color_palette = np.random.uniform(0, 255, size=(len(self.classes), 3))
 
@@ -86,31 +84,6 @@ class Model:
         img_transposed = np.transpose(img_normalized, (2, 0, 1))
         img_expanded = np.expand_dims(img_transposed, axis=0).astype(np.float32)
         return img_expanded
-
-    def siamese(self, small_imgs, big_img_boxes):
-        preprocessed_small_imgs = {i: self.preprocess_image(small_imgs[i]) for i in sorted(small_imgs)}
-        result_list = []
-        for i in sorted(preprocessed_small_imgs):
-            image_data_1 = preprocessed_small_imgs[i]
-            for box in big_img_boxes:
-                if [box[0], box[1]] in result_list:
-                    continue
-                cropped = self.img[box[1]: box[1] + box[3], box[0]: box[0] + box[2]]
-                image_data_2 = self.preprocess_image(cropped)
-                inputs = {'input': image_data_1, "input.53": image_data_2}
-                # tt = time.time()
-                output = self.Siamese.run(None, inputs)
-                # print(time.time() - tt)
-                output_sigmoid = 1 / (1 + np.exp(-output[0]))
-                res = output_sigmoid[0][0]
-                # print("置信度: "+str(res))
-                if res >= 0.1:
-                    result_list.append([box[0], box[1]])
-                    break
-        for i in result_list:
-            cv2.circle(self.img, (i[0] + 30, i[1] + 30), 5, (0, 0, 255), 5)
-            cv2.imwrite("result.jpg", self.img)
-        return result_list
 
     def siamese_from_order(self, order_imgs, big_img_boxes):
         result_list = []
