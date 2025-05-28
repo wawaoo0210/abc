@@ -164,3 +164,5 @@ cython_debug/
 debug/
 marked_pic/
 raw_pic/
+channel
+output
